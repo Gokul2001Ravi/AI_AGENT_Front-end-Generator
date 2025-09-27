@@ -3,15 +3,36 @@ import requests
 import os
 import json
 import re
+#from google import genai - for gloabal ebv
+import google.generativeai as genai
 
+from dotenv import load_dotenv
+load_dotenv()
 # -------------------------------
 # Config
 # -------------------------------
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
+# ------------------------------------------  GEM  1
+# Example: get Gemini API Key
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+print("Gemini key loaded?", bool(GEMINI_API_KEY))  # Debug
+
+
+
+# if GEMINI_API_KEY: ---------------------------------------------------------------- FOR GLOBAL ENV
+#     gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+# else:
+#     gemini_client = None
+
+if GEMINI_API_KEY:                                                                  # - For venv
+    genai.configure(api_key=GEMINI_API_KEY)
+else:
+    genai = None  # Optional: handle no-key situation
+
 
 # -------------------------------
-# Generic Model Wrapper
+# Generic Model Wrapper (OLLAMA)
 # -------------------------------
 def model_chat_completion(model: str, prompt: str) -> str:
     """Call Ollama with a given model + prompt and return clean text response."""
@@ -25,6 +46,75 @@ def model_chat_completion(model: str, prompt: str) -> str:
         return resp.get("response", "").strip()
     except Exception as e:
         return f"[Error contacting Ollama: {e}]"
+    
+
+# Generic Model Wrapper (Gemini)                                                                            - GEM 1
+# -------------------------------
+# def gemini_completion(model: str, prompt: str) -> str:                                                    ---- for gloabal env
+#     """Call Gemini with prompt and return clean response text."""
+#     if not gemini_client:
+#         raise ValueError("❌ GEMINI_API_KEY not set, but Gemini was requested")
+#     try:
+#         resp = gemini_client.models.generate_content(model=model, contents=prompt)
+#         if resp.candidates:
+#             return resp.candidates[0].content.parts[0].text.strip()
+#         return "[No response from Gemini]"
+#     except Exception as e:
+#         return f"[Error contacting Gemini: {e}]"
+
+
+def gemini_completion(model: str, prompt: str) -> str:                              # - for venv
+    """Call Gemini with prompt and return clean response text (old SDK)."""
+    if not genai:
+        raise ValueError("❌ GEMINI_API_KEY not set, but Gemini was requested")
+    
+    try:
+        # create the model object
+        gm = genai.GenerativeModel(model)
+        
+        # generate content
+        resp = gm.generate_content(prompt)
+        
+        # get text safely
+        if resp and resp.text:
+            return resp.text.strip()
+        return "[No response from Gemini]"
+    
+    except Exception as e:
+        return f"[Error contacting Gemini: {e}]"
+
+
+# -------------------------------
+# Agent 0 → Requirements → BRD
+# -------------------------------
+def agent(requirements: dict) -> str:
+    """
+    Takes structured user requirements (dict) and generates a clean BRD.
+    """
+    brd_instruction = """You are an expert Business Analyst.
+Generate a clear and professional **Business Requirement Document (BRD)** based on the provided requirements.
+
+Rules:
+- Be structured and concise
+- Do not add extra assumptions
+- Organize under standard BRD sections:
+  1. Overview
+  2. Objectives
+  3. In-Scope
+  4. Out-of-Scope
+  5. UI/UX Requirements
+  6. Functional Requirements
+  7. Non-Functional Requirements
+  8. Acceptance Criteria
+"""
+
+    # Convert dict into plain text for LLM
+    req_text = "\n".join([f"{k}: {v}" for k, v in requirements.items() if v])
+    prompt = brd_instruction + "\n\nUser Requirements:\n" + req_text
+
+    return model_chat_completion("llama3", prompt)
+
+
 
 
 # -------------------------------
@@ -53,6 +143,32 @@ BRD:
 """
     prompt = prd_instruction + brd_text
     return model_chat_completion("llama3", prompt)
+
+
+# -------------------------------
+# Generate or Update PRD (Smart Merge Wrapper)
+# -------------------------------
+def generate_or_update_prd(new_brd_text: str, existing_prd: str = None) -> str:
+    """
+    Checks if there is an existing PRD and updates it with new BRD text.
+    If no existing PRD, generates a new one.
+    """
+    if existing_prd:
+        update_prompt = f"""
+Existing PRD:
+{existing_prd}
+
+New BRD Update:
+{new_brd_text}
+
+Update the PRD to include the new requirements while keeping previous features intact.
+- Maintain all existing sections (Objectives, UI Screens & Components, State Management, Data Persistence, User Roles, Acceptance Criteria)
+- Be minimal, structured, and developer-focused
+"""
+        return agent1(update_prompt)
+    else:
+        return agent1(new_brd_text)
+
 
 
 # -------------------------------
@@ -96,9 +212,9 @@ Output must be a clean markdown document with file mappings.
     return model_chat_completion("qwen2.5:7b", prompt)
 
 
-# -------------------------------
-# Agent 3 → Architecture → Code
-# -------------------------------
+# # -------------------------------
+# # Agent 3 → Architecture → Code      - OLLAMA
+# # -------------------------------
 def agent3(input_data):
     """Takes Architecture (and optional STM context) and generates React code"""
     if isinstance(input_data, dict):
@@ -120,7 +236,13 @@ def agent3(input_data):
     
     Rules:
     - Mandatory files (must always be present): 
-      src/App.jsx, src/main.jsx, src/index.css, tailwind.config.js, vite.config.js, package.json
+      index.html (in project root, must include <div id="root"></div> and <script type="module" src="/src/main.jsx"></script>),
+      src/App.jsx,
+      src/main.jsx,
+      src/index.css,
+      tailwind.config.js,
+      vite.config.js,
+      package.json
     - Also mandatory if PRD/Architecture specifies them (NOT optional): 
       src/store/store.js (if state management is mentioned),
       src/screens/* (for each screen listed in architecture),
@@ -133,7 +255,22 @@ def agent3(input_data):
     - All components must be implemented as React functional components with JSX.
     - Every file value MUST contain actual valid source code (imports, functions, JSX, etc.). 
     - Do NOT output summaries, placeholders, or meta descriptions.
-    - package.json MUST only include the allowed deps above.
+
+    Strict Coding Rules (MUST follow):
+    - Never use "=>" inside import/export statements. Use only valid ES6 import/export syntax.
+    - All JSX must be valid React 18 syntax. Close every tag properly.
+    - Never mix lowercase and uppercase component names. Components must always start with uppercase.
+    - Every component must explicitly export (default or named) at the end of the file.
+    - Do not include unused imports or variables.
+    - Code must compile successfully under Vite + React + Tailwind with no syntax errors.
+    - Before returning, self-check that the code passes ESLint React rules (no syntax/lint violations).
+
+    - package.json requirements:
+      - MUST include ONLY the allowed dependencies: react, react-dom, vite, tailwindcss, @reduxjs/toolkit, react-redux, react-router-dom (if needed), papaparse, uuid.
+      - All dependency names MUST be spelled exactly as in npm registry (e.g., "papaparse" NOT "papa-parse").
+      - Versions MUST be the latest stable releases at generation time (e.g., "latest").
+      - No deprecated, old, or extra packages.
+
     - Use double quotes in JSON. Escape all newlines inside strings as \\n. 
     - No trailing commas anywhere in JSON or code strings.
     
@@ -141,6 +278,77 @@ def agent3(input_data):
 """
     prompt = code_instruction + input_text
     return model_chat_completion("codeqwen:7b", prompt)
+
+
+
+# -------------------------------
+# Agent 3 → Architecture → Code (Gemini 2.5 Flash)
+# -------------------------------
+# def agent3(input_data):
+#     """Takes Architecture (and optional STM context) and generates React code"""
+#     if isinstance(input_data, dict):
+#         context = input_data.get("context", {})
+#         focus = input_data.get("focus", "")
+#         prd_text = context.get("PRD", "")
+#         arch_text = context.get("Architecture", "")
+#         input_text = f"PRD:\n{prd_text}\n\nArchitecture:\n{arch_text}\n\nInstruction:\n{focus}"
+#     else:
+#         input_text = str(input_data)
+
+#     code_instruction = """You are a Frontend Developer. Output a single VALID JSON object.
+#     Top-level key MUST be "frontend". Each key is a file path, each value is the full file content as a string.
+#     Absolutely NO markdown, NO code fences, NO comments, NO prose. Just JSON.
+    
+#     Use ONLY: React, Redux Toolkit (if state management needed), Tailwind CSS, Vite, PapaParse, uuid.
+#     Always use React + Tailwind for UI. No other frontend frameworks allowed.
+#     Do NOT include axios, react-toastify, or any other libraries.
+    
+#     Rules:
+#     - Mandatory files (must always be present): 
+#       index.html (in project root, must include <div id="root"></div> and <script type="module" src="/src/main.jsx"></script>),
+#       src/App.jsx,
+#       src/main.jsx,
+#       src/index.css,
+#       tailwind.config.js,
+#       vite.config.js,
+#       package.json
+#     - Also mandatory if PRD/Architecture specifies them (NOT optional): 
+#       src/store/store.js (if state management is mentioned),
+#       src/screens/* (for each screen listed in architecture),
+#       src/components/* (for each component listed in architecture)
+#     - The structure of components, screens, and Redux slices MUST be based on the entities, features, and navigation described in the PRD/arch_text.
+#     - If state persistence is needed, use localStorage (load on init, save on changes).
+#     - For navigation:
+#       - If PRD says "single-page scroll", use section IDs + anchor links in Navbar (no react-router-dom).
+#       - If PRD says "multi-page routing", then use react-router-dom v6.
+#     - All components must be implemented as React functional components with JSX.
+#     - Every file value MUST contain actual valid source code (imports, functions, JSX, etc.). 
+#     - Do NOT output summaries, placeholders, or meta descriptions.
+
+#     Strict Coding Rules (MUST follow):
+#     - Never use "=>" inside import/export statements. Use only valid ES6 import/export syntax.
+#     - All JSX must be valid React 18 syntax. Close every tag properly.
+#     - Never mix lowercase and uppercase component names. Components must always start with uppercase.
+#     - Every component must explicitly export (default or named) at the end of the file.
+#     - Do not include unused imports or variables.
+#     - Code must compile successfully under Vite + React + Tailwind with no syntax errors.
+#     - Before returning, self-check that the code passes ESLint React rules (no syntax/lint violations).
+
+#     - package.json requirements:
+#       - MUST include ONLY the allowed dependencies: react, react-dom, vite, tailwindcss, @reduxjs/toolkit, react-redux, react-router-dom (if needed), papaparse, uuid.
+#       - All dependency names MUST be spelled exactly as in npm registry (e.g., "papaparse" NOT "papa-parse").
+#       - Versions MUST be the latest stable releases at generation time (e.g., "latest").
+#       - No deprecated, old, or extra packages.
+
+#     - Use double quotes in JSON. Escape all newlines inside strings as \\n. 
+#     - No trailing commas anywhere in JSON or code strings.
+    
+#     The output must strictly follow the architecture specifications provided in arch_text.
+# """
+
+#     prompt = code_instruction + input_text
+#     return gemini_completion("gemini-2.5-flash", prompt)
+
 
 
 # Agent 4 → Validation + Cleaning
@@ -271,11 +479,11 @@ def agent4(generated_code: dict, base_dir="validated_code"):
         "validated_code": validated_code
     }
 
-# -------------------------------
-# Agent 5 → Code + Issues → Fixed Code
-# -------------------------------
+# # -------------------------------
+# # Agent 5 → Code + Issues → Fixed Code -                                  - OLLAMA
+# # -------------------------------
 def agent5(generated_code: dict, issues: list, arch_text: str) -> dict:
-    """Takes Agent3's generated code and Agent4's issues, generates fixed JSON code."""
+    """Takes Agent3's generated code and Agent4's issues, generates fixed JSON code. Fix issues without losing files."""
     # Clean and parse if needed
     if isinstance(generated_code, str):
         try:
@@ -286,28 +494,32 @@ def agent5(generated_code: dict, issues: list, arch_text: str) -> dict:
     if "frontend" in generated_code:
         generated_code = generated_code["frontend"]
 
+    all_files = list(generated_code.keys())
+
     # Prompt for Agent5
     system_prompt = f"""
-You are a Code Debugger for React frontend. Output ONLY a single VALID JSON object: {{"frontend": {{"file/path": "full fixed code string", ...}}}}.
-Fix ONLY the listed issues. PRESERVE ALL original files/content/structure—copy unchanged files verbatim. Do NOT delete or add new files unless directly required by issues.
+You are a React Code Debugger. Output ONLY a single VALID JSON object: 
+{{"frontend": {{"file/path": "full fixed code string", ...}}}}.
 
-Architecture Specs (preserve this UI structure): {arch_text}
+Your tasks:
+- Fix ONLY the listed issues.
+- Preserve ALL original files (from Agent3). If a file has no issue, copy it verbatim.
+- Do NOT delete or omit files. Return at least the same number of files as input.
+- Architecture Specs (must follow): {arch_text}
 
-Original Code (base fixes on this):
+Original Files (preserve structure, only patch what’s broken):
 {json.dumps(generated_code, indent=2)}
 
-Issues to Fix (address each exactly):
+Issues to Fix:
 {chr(10).join([f"- {issue}" for issue in issues])}
 
 Rules:
-- For missing files: Generate with minimal valid content (e.g., index.html with <div id="root"></div> and <script type="module" src="/src/main.jsx"></script>).
-- For broken imports: Correct paths (e.g., '../components/Navbar.jsx' to correct relative).
-- For invalid JSON in package.json: Un-escape and make valid.
-- For missing exports: Add 'export default' in App.jsx.
-- JSON Output: Escape newlines as \\n, double quotes only, no trailing commas. Valid JSX in .jsx files.
-- Ensure full UI: Responsive Tailwind, smooth scroll if specified, no placeholders—use sample data.
-
-Return same number of files as original.
+- Missing file → generate minimal valid code.
+- Broken import → correct relative path.
+- Missing export → add `export default`.
+- package.json → must stay valid JSON, allowed deps only.
+- Escape newlines as \\n. Double quotes only. No trailing commas.
+- JSX must be valid React 18.
 """
 
     payload = {
@@ -327,6 +539,65 @@ Return same number of files as original.
     except Exception as e:
         print(f"❌ Agent5 error: {e}")
         return generated_code  # Fallback to original
+
+
+# -------------------------------
+# Agent 5 → Code + Issues → Fixed Code  (GEMINI)
+# -------------------------------
+# def agent5(generated_code: dict, issues: list, arch_text: str) -> dict: #----------------------------------------- for agent 5 , if again that incomplete issue arise we need to inject this code
+#     """Takes Agent3's generated code and Agent4's issues, generates fixed JSON code. Fix issues without losing files."""
+
+#     # Parse incoming JSON
+#     if isinstance(generated_code, str):
+#         try:
+#             generated_code = json.loads(clean_json_output(generated_code))
+#         except json.JSONDecodeError:
+#             generated_code = {}
+
+#     # Always unwrap only once
+#     if "frontend" in generated_code:
+#         generated_code = generated_code["frontend"]
+
+#     all_files = list(generated_code.keys())  # ✅ Keep full file list
+
+#     system_prompt = f"""
+# You are a React Code Debugger. Output ONLY a single VALID JSON object: 
+# {{"frontend": {{"file/path": "full fixed code string", ...}}}}.
+
+# Your tasks:
+# - Fix ONLY the listed issues.
+# - Preserve ALL original files (from Agent3). If a file has no issue, copy it verbatim.
+# - Do NOT delete or omit files. Return at least the same number of files as input.
+# - Architecture Specs (must follow): {arch_text}
+
+# Original Files (preserve structure, only patch what’s broken):
+# {json.dumps(generated_code, indent=2)}
+
+# Issues to Fix:
+# {chr(10).join([f"- {issue}" for issue in issues])}
+
+# Rules:
+# - Missing file → generate minimal valid code.
+# - Broken import → correct relative path.
+# - Missing export → add `export default`.
+# - package.json → must stay valid JSON, allowed deps only.
+# - Escape newlines as \\n. Double quotes only. No trailing commas.
+# - JSX must be valid React 18.
+# """
+
+#     try:
+#         raw_output = gemini_completion("gemini-2.5-flash", system_prompt)
+#         cleaned = clean_json_output(raw_output)
+#         fixed = json.loads(cleaned)
+
+#         if "frontend" not in fixed:
+#             fixed = {"frontend": fixed}
+
+#         return fixed
+#     except Exception as e:
+#         print(f"❌ Agent5 error (Gemini): {e}")
+#         return {"frontend": generated_code}  # Fallback
+
 
 
 def clean_json_output(raw: str) -> str:

@@ -1,0 +1,157 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BRD Generator</title>
+  <script src="./index.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0fdf4;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+    .container {
+      background: #ffffff;
+      margin-top: 40px;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      width: 80%;
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    h1 {
+      color: #15803d;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    textarea, input, select {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #22c55e;
+      border-radius: 10px;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    textarea { height: 200px; resize: vertical; }
+    button {
+      margin-top: 10px;
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      display: block;
+      width: 100%;
+    }
+    button:hover { background: #16a34a; }
+    .output {
+      margin-top: 10px;
+      padding: 20px;
+      border-radius: 10px;
+      background: #ecfdf5;
+      border: 1px solid #238b1f;
+      white-space: pre-wrap;
+      max-height: 500px;
+      overflow-y: auto;
+      font-size: 15px;
+    }
+    .section-btn {
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 8px;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    .section-content {
+      display: none;
+      padding: 10px;
+      border-left: 3px solid #16a34a;
+      margin-bottom: 10px;
+      background: #ecfdf5;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    /* Chatbot styles */
+    #chatContainer {
+      margin-bottom: 10px;
+      border: 1px solid #22c55e;
+      border-radius: 10px;
+      padding: 10px;
+      max-height: 250px;
+      overflow-y: auto;
+      background: #f9fff9;
+      display: flex;
+      flex-direction: column;
+    }
+    #chatInput {
+      margin-bottom: 5px;
+    }
+    #manualSection {
+      transition: all 0.3s ease;
+    }
+    /* Preview iframe */
+    #previewFrame {
+      width: 100%;
+      height: 500px;
+      border: 2px solid #22c55e;
+      border-radius: 12px;
+      margin-top: 20px;
+      background: white;
+    }
+  </style>
+  <script src="https://unpkg.com/esbuild-wasm@0.17.19/esbuild.wasm"></script>
+  <script src="https://unpkg.com/esbuild-wasm@0.17.19"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>BRD → UI Code Generator</h1>
+
+    <!-- First: Start QA Mode -->
+    <button onclick="startQA()">Start Q/A Mode</button>
+
+    <!-- Chat section -->
+    <div id="chatSection" style="display:none;">
+      <div id="chatContainer"></div>
+      <input id="chatInput" placeholder="Type your answer here..." />
+      <button onclick="sendAnswer()">Send</button>
+    </div>
+
+    <hr />
+
+    <!-- Manual BRD Section (hidden when QA mode active) -->
+    <div id="manualSection">
+      <input id="projectName" placeholder="Enter project name (leave blank for auto-detect)" />
+      <textarea id="brdInput" placeholder="Paste your BRD or modification here..."></textarea>
+      <button onclick="generate()">Generate</button>
+    </div>
+
+    <h3>History</h3>
+    <select id="historyDropdown" onchange="onHistorySelect()">
+      <option value="">-- Select Previous Project --</option>
+    </select>
+
+    <div id="output" class="output"></div>
+
+    <h3>Live Preview</h3>
+    <iframe id="previewFrame"></iframe>
+  </div>
+
+ 
+</html>

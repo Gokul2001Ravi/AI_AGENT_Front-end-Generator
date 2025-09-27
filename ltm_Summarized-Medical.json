@@ -55,5 +55,63 @@
         "package.json": "{\n  \"name\": \"patient-dashboard\",\n  \"version\": \"1.0.0\",\n  \"description\": \"Patient Dashboard Frontend\",\n  \"main\": \"src/index.js\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"vite build\",\n    \"preview\": \"vite preview\"\n  },\n  \"dependencies\": {\n    \"react\": \"^17.0.2\",\n    \"react-dom\": \"^17.0.2\",\n    \"tailwindcss\": \"^2.2.7\",\n    \"@reduxjs/toolkit\": \"^1.6.1\",\n    \"axios\": \"^0.21.1\",\n    \"formik\": \"^2.2.8\",\n    \"@testing-library/react\": \"^11.2.7\"\n  },\n  \"devDependencies\": {\n    \"vite\": \"^2.3.0\",\n    \"prettier\": \"^2.3.1\"\n  }\n}"
       }
     }
+  },
+  {
+    "type": "PRD",
+    "summary": "- Project: Gym Website\n  - Objectives: Showcase gym, user-friendly interface for exploration\n\n- UI Screens & Components:\n  1. Home page: Banner, workout images\n  2. About Us: Text about gym and trainers\n  3. Membership Plans: Pricing options (monthly, yearly, student discounts)\n  4. Gallery: Placeholder photos and videos\n  5. Contact: Form (name, email, message), Google Maps frame\n  6. Footer: Social links (FB, Insta, YouTube)\n\n- State Management: None (no complex state management required)\n- Data Persistence: None (frontend-only project)\n- User Roles: None\n- Acceptance Criteria:\n   - Home page: Big banner, workout images\n   - About Us: Gym and trainer info\n   - Membership Plans: Pricing options listed\n   - Gallery: Placeholder media displayed\n   - Contact: Form and Google Maps frame\n   - Footer: Social links present\n   - Mobile-responsive design"
+  },
+  {
+    "type": "Architecture",
+    "summary": "- Frontend Architecture for Gym Website:\n    - Tech Stack: React, Tailwind CSS, Vite, Redux Toolkit (Context API fallback), Axios, React Router, @headlessui/react\n    - Mandatory Files: `App.jsx`, `main.jsx`, `index.css`, `tailwind.config.js`, `vite.config.js`, `package.json`\n    - Screens: Home Page, About Us Page, Membership Plans Page, Gallery Page, Contact Page\n    - Components: Navbar Component, Banner Component, AboutUsComponent, MembershipPlansComponent, GalleryComponent, ContactFormComponent, GoogleMapsComponent\n    - State Management: Simple state handling using Context API\n    - Data Storage: No client-side storage implemented\n    - UI Features: Responsive Design, Animations, Forms (Contact Form), Role-based Access not required\n    - File Mappings: Provided with examples for `App.jsx`, `Home.jsx`, `Gallery.jsx`, and `ContactForm.jsx`\n    - State Management: Example of `AppContext.jsx` provided for state handling"
+  },
+  {
+    "type": "Code",
+    "raw": "{\n  \"frontend\": {\n    \"src/App.jsx\": \"import React from 'react';\\nimport AppContext, { appReducer } from './context/AppContext';\\nimport { Provider } from 'react-redux'; \\nimport store from './store/store';\\nimport Router from './Router';\\n\\nexport default function App() {\\n  return (\\n    <Provider store={store}>\\n      <AppContext.Provider value={{ appReducer }}>\\n        <Router />\\n      </AppContext.Provider>\\n    </Provider>\\n  );\\n}\",\n    \"src/main.jsx\": \"import React from 'react';\\nimport ReactDOM from 'react-dom/client';\\nimport App from './App';\\n\\nconst root = ReactDOM.createRoot(document.getElementById('root'));\\nroot.render(\\u003cReact.StrictMode\\u003e\\n  <App />\\u003c/React.StrictMode\\u003e);\",\n    \"src/index.css\": \"@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap');\\nbody {background-color: #111;\\n  font-family: 'Roboto', sans-serif;}\",\n    \"tailwind.config.js\": \"module.exports = {\\n  theme: {\\n    extend: {}\\n  },\\n  plugins: []\\n};\\n\",\n    \"vite.config.js\": \"import { defineConfig } from 'vite';\\nimport react from '@vitejs/plugin-react';\\n\\nexport default defineConfig({\\n  base: '/',\\n  build: {\\n    assetsDir: 'static'\\n  },\\n  plugins: [react()]\\n});\",\n    \"package.json\": \"{\\n  \\\"name\\\": \\\"gym-website\\\",\\n  \\\"version\\\": \\\"1.0.0\\\",\\n  \\\"description\\\": \\\"Frontend for a new gym website\\\",\\n  \\\"author\\\": \\\"\\\",\\n  \\\"license\\\": \\\"MIT\\\",\\n  \\\"dependencies\\\": {\\n    \\\"react\\\": \\\"^17.0.2\\\",\\n    \\\"react-dom\\\": \\\"^17.0.2\\\",\\n    \\\"react-router-dom\\\": \\\"^6.3.0\\\",\\n    \\\"tailwindcss\\\": \\\"^3.0.1\\\",\\n    \\\"vite\\\": \\\"^4.1.0\\\",\\n    \\\"@headlessui/react\\\": \\\"^1.7.14\\\",\\n    \\\"uuid\\\": \\\"^8.3.2\\\"\\n  },\\n  \\\"devDependencies\\\": {\\n    \\\"@vitejs/plugin-react\\\": \\\"^4.0.0\\\"\\n  }\\n}\"\n  }\n}"
+  },
+  {
+    "type": "Validation",
+    "summary": "- Validation Results:\n  - Issues Found:\n    * Missing `index.html` file\n    * Broken imports in `App.jsx` for `AppContext`, `store/store`, and `Router`\n  - Logs:\n    + Package.json, src/App.jsx, src/main.jsx, src/index.css, tailwind.config.js, vite.config.js found\n    + react, react-dom, vite, tailwindcss in dependencies or devDependencies\n  - Validated Code Snippets:\n    * src/App.jsx contains incorrect imports for AppContext, store, and Router\n    * src/main.jsx, src/index.css, tailwind.config.js, vite.config.js appear correct\n    * package.json shows dependencies for react, react-dom, react-router-dom, tailwindcss, vite, @headlessui/react, and uuid"
+  },
+  {
+    "type": "Fixed_Code",
+    "raw": {
+      "frontend": {
+        "src/App.jsx": "import React from 'react';\nimport AppContext, { appReducer } from './context/AppContext';\nimport { Provider } from 'react-redux'; \nimport store from './store/store';\nimport Router from './Router';\n\nexport default function App() {\n  return (\n    <Provider store={store}>\n      <AppContext.Provider value={{ appReducer }}>\n        <Router />\n      </AppContext.Provider>\n    </Provider>\n  );\n}",
+        "src/main.jsx": "import React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\n\nconst root = ReactDOM.createRoot(document.getElementById('root'));\nroot.render(<React.StrictMode>\n  <App /></React.StrictMode>);",
+        "src/index.css": "@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap');\nbody {background-color: #111;\n  font-family: 'Roboto', sans-serif;}",
+        "tailwind.config.js": "module.exports = {\n  theme: {\n    extend: {}\n  },\n  plugins: []\n};\n",
+        "vite.config.js": "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  base: '/',\n  build: {\n    assetsDir: 'static'\n  },\n  plugins: [react()]\n});",
+        "package.json": "{\n  \"name\": \"gym-website\",\n  \"version\": \"1.0.0\",\n  \"description\": \"Frontend for a new gym website\",\n  \"author\": \"\",\n  \"license\": \"MIT\",\n  \"dependencies\": {\n    \"react\": \"^17.0.2\",\n    \"react-dom\": \"^17.0.2\",\n    \"react-router-dom\": \"^6.3.0\",\n    \"tailwindcss\": \"^3.0.1\",\n    \"vite\": \"^4.1.0\",\n    \"@headlessui/react\": \"^1.7.14\",\n    \"uuid\": \"^8.3.2\"\n  },\n  \"devDependencies\": {\n    \"@vitejs/plugin-react\": \"^4.0.0\"\n  }\n}",
+        "index.html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Gym Website</title>\n  <link rel=\"stylesheet\" href=\"/src/index.css\">\n</head>\n<body>\n  <div id=\"root\"></div>\n  <script type=\"module\" src=\"/src/main.jsx\"></script>\n</body>\n</html>"
+      }
+    }
+  },
+  {
+    "type": "Fixed_Code",
+    "raw": {
+      "frontend": {
+        "src/App.jsx": "import React from 'react';\nimport AppContext, { appReducer } from './context/AppContext';\nimport { Provider } from 'react-redux'; \nimport store from './store/store';\nimport Router from './Router';\n\nexport default function App() {\n  return (\n    <Provider store={store}>\n      <AppContext.Provider value={{ appReducer }}>\n        <Router />\n      </AppContext.Provider>\n    </Provider>\n  );\n}",
+        "src/main.jsx": "import React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\n\nconst root = ReactDOM.createRoot(document.getElementById('root'));\nroot.render(<React.StrictMode>\n  <App /></React.StrictMode>);",
+        "src/index.css": "@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap');\nbody {background-color: #111;\n  font-family: 'Roboto', sans-serif;}",
+        "tailwind.config.js": "module.exports = {\n  theme: {\n    extend: {}\n  },\n  plugins: []\n};\n",
+        "vite.config.js": "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  base: '/',\n  build: {\n    assetsDir: 'static'\n  },\n  plugins: [react()]\n});",
+        "package.json": "{\n  \"name\": \"gym-website\",\n  \"version\": \"1.0.0\",\n  \"description\": \"Frontend for a new gym website\",\n  \"author\": \"\",\n  \"license\": \"MIT\",\n  \"dependencies\": {\n    \"react\": \"^17.0.2\",\n    \"react-dom\": \"^17.0.2\",\n    \"react-router-dom\": \"^6.3.0\",\n    \"tailwindcss\": \"^3.0.1\",\n    \"vite\": \"^4.1.0\",\n    \"@headlessui/react\": \"^1.7.14\",\n    \"uuid\": \"^8.3.2\"\n  },\n  \"devDependencies\": {\n    \"@vitejs/plugin-react\": \"^4.0.0\"\n  }\n}",
+        "index.html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Gym Website</title>\n  <link rel=\"stylesheet\" href=\"/src/index.css\">\n</head>\n<body>\n  <div id=\"root\"></div>\n  <script type=\"module\" src=\"/src/main.jsx\"></script>\n</body>\n</html>"
+      }
+    }
+  },
+  {
+    "type": "Fixed_Code",
+    "raw": {
+      "frontend": {
+        "src/App.jsx": "import React from 'react';\nimport AppContext, { appReducer } from './context/AppContext';\nimport { Provider } from 'react-redux'; \nimport store from './store/store';\nimport Router from './Router';\n\nexport default function App() {\n  return (\n    <Provider store={store}>\n      <AppContext.Provider value={{ appReducer }}>\n        <Router />\n      </AppContext.Provider>\n    </Provider>\n  );\n}",
+        "src/main.jsx": "import React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\n\nconst root = ReactDOM.createRoot(document.getElementById('root'));\nroot.render(<React.StrictMode>\n  <App /></React.StrictMode>);",
+        "src/index.css": "@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap');\nbody {background-color: #111;\n  font-family: 'Roboto', sans-serif;}",
+        "tailwind.config.js": "module.exports = {\n  theme: {\n    extend: {}\n  },\n  plugins: []\n};\n",
+        "vite.config.js": "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  base: '/',\n  build: {\n    assetsDir: 'static'\n  },\n  plugins: [react()]\n});",
+        "package.json": "{\n  \"name\": \"gym-website\",\n  \"version\": \"1.0.0\",\n  \"description\": \"Frontend for a new gym website\",\n  \"author\": \"\",\n  \"license\": \"MIT\",\n  \"dependencies\": {\n    \"react\": \"^17.0.2\",\n    \"react-dom\": \"^17.0.2\",\n    \"react-router-dom\": \"^6.3.0\",\n    \"tailwindcss\": \"^3.0.1\",\n    \"vite\": \"^4.1.0\",\n    \"@headlessui/react\": \"^1.7.14\",\n    \"uuid\": \"^8.3.2\"\n  },\n  \"devDependencies\": {\n    \"@vitejs/plugin-react\": \"^4.0.0\"\n  }\n}",
+        "index.html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Gym Website</title>\n  <link rel=\"stylesheet\" href=\"/src/index.css\">\n</head>\n<body>\n  <div id=\"root\"></div>\n  <script type=\"module\" src=\"/src/main.jsx\"></script>\n</body>\n</html>"
+      }
+    }
   }
 ]

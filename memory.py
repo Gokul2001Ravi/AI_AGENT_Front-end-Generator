@@ -258,6 +258,121 @@
 # # # # #             json.dump([], f)
 
 ########### Tried a llm model to summarize the raw outputs and storing the relevant info and future needed info alone in LTM   - grok till 5 still testing
+
+################################################################################################################################ (19/9) before QA and BED Memory
+
+# import json
+# import os
+# import requests
+
+# # =========================
+# # Summarizer (semantic, LLM-based via Ollama)
+# # =========================
+# def summarizer_llm(text: str, context_type: str) -> str:
+#     if not isinstance(text, str):
+#         try:
+#             text = json.dumps(text, indent=2)
+#         except Exception:
+#             text = str(text)
+
+#     prompt = f"""
+#     You are a memory compression assistant.
+#     Summarize the following {context_type} into a concise form,
+#     keeping only the key facts needed for future agents.
+#     - Use bullet points if helpful
+#     - Max length: ~500 characters
+#     - Do NOT include filler text.
+
+#     Text:
+#     {text}
+#     """
+
+#     try:
+#         with requests.post(
+#             "http://localhost:11434/api/generate",
+#             json={"model": "mistral:instruct", "prompt": prompt, "stream": True},
+#             stream=True,
+#             timeout=180
+#         ) as resp:
+#             resp.raise_for_status()
+#             output = ""
+#             for line in resp.iter_lines():
+#                 if line:
+#                     chunk = json.loads(line.decode("utf-8"))
+#                     output += chunk.get("response", "")
+#             return output.strip()
+#     except Exception as e:
+#         print(f"[WARN] Ollama summarizer failed: {e}")
+#         return f"[{context_type} Summary] {text[:300]}..."
+
+
+# # =========================
+# # Memory Class
+# # =========================
+# class Memory:
+#     def __init__(self, ltm_file="ltm_new1.json"):
+#         # Short-Term Memory (per session, resets if you restart script)
+#         self.stm = {}
+
+#         # Long-Term Memory (persists across runs, saved to JSON file)
+#         self.ltm_file = ltm_file
+#         if os.path.exists(self.ltm_file):
+#             try:
+#                 with open(self.ltm_file, "r") as f:
+#                     self.ltm = json.load(f)
+#             except json.JSONDecodeError:
+#                 self.ltm = []
+#         else:
+#             self.ltm = []
+
+#     # ====== STM (short-term memory) ======
+#     def add_to_stm(self, key, value):
+#         self.stm[key] = value
+
+#     def update_stm(self, key, value):
+#         self.stm[key] = value
+
+#     def get_stm(self, key=None):
+#         if key:
+#             return self.stm.get(key, None)
+#         return self.stm
+
+#     def clear_stm(self):
+#         self.stm = {}
+
+#     # ====== LTM (long-term memory) ======
+#     def add_to_ltm(self, key, value):
+#         """
+#         Store into LTM.
+#         - Summarize long text (PRD, Arch, Validation, etc.)
+#         - Store raw code fully (since summaries won’t help for execution).
+#         """
+#         if key.lower() in ["code", "frontend_code", "generated_code", "fixed_code"]:
+#             entry = {"type": key, "raw": value}
+#         else:
+#             summary = summarizer_llm(value, key)
+#             entry = {"type": key, "summary": summary}
+
+#         self.save_ltm(entry)
+
+#     def save_ltm(self, entry: dict):
+#         self.ltm.append(entry)
+#         with open(self.ltm_file, "w") as f:
+#             json.dump(self.ltm, f, indent=2)
+
+#     def get_ltm(self, filter_type=None):
+#         if filter_type:
+#             return [e for e in self.ltm if e.get("type") == filter_type]
+#         return self.ltm
+
+#     def clear_ltm(self):
+#         self.ltm = []
+#         with open(self.ltm_file, "w") as f:
+#             json.dump([], f)
+
+
+
+############################################################################################################################### this is new with QA memory and BRD
 import json
 import os
 import requests
@@ -307,7 +422,7 @@ def summarizer_llm(text: str, context_type: str) -> str:
 # Memory Class
 # =========================
 class Memory:
-    def __init__(self, ltm_file="ltm_Summarized-Medical.json"):
+    def __init__(self, ltm_file="ltm_Autism_olama.json"):
         # Short-Term Memory (per session, resets if you restart script)
         self.stm = {}
 
@@ -343,10 +458,20 @@ class Memory:
         Store into LTM.
         - Summarize long text (PRD, Arch, Validation, etc.)
         - Store raw code fully (since summaries won’t help for execution).
+        - NEW: Store QA + BRD memories explicitly
         """
-        if key.lower() in ["code", "frontend_code", "generated_code", "fixed_code"]:
+        # === Added: Always store QA raw answers ===
+        if key.lower() in ["qa", "qa_memory"]:
+            entry = {"type": "qa", "raw": value}  # keep raw answers
+        # === Added: Store BRD fully and also summarized ===
+        elif key.lower() in ["brd", "brd_memory"]:
+            summary = summarizer_llm(value, "BRD")
+            entry = {"type": "brd", "raw": value, "summary": summary}
+        # === Code memories stay raw ===
+        elif key.lower() in ["code", "frontend_code", "generated_code", "fixed_code"]:
             entry = {"type": key, "raw": value}
         else:
+            # Default: summarize
             summary = summarizer_llm(value, key)
             entry = {"type": key, "summary": summary}
 
@@ -366,5 +491,4 @@ class Memory:
         self.ltm = []
         with open(self.ltm_file, "w") as f:
             json.dump([], f)
-
 

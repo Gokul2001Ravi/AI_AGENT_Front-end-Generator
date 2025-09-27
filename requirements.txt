@@ -1,1 +1,6 @@
+fastapi
 requests
+uvicorn
+python-dotenv
+google-generativeai
+python-multipart

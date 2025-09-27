@@ -1,4 +1,7 @@
-<!DOCTYPE html>
+<!-- Without DropDown -->
+
+
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -183,4 +186,1387 @@
     }
   </script>
 </body>
+</html> -->
+
+<!-- With DropDown -->
+
+
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BRD Generator</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0fdf4;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+
+    .container {
+      background: #ffffff;
+      margin-top: 40px;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      width: 80%;
+      max-width: 900px;
+    }
+
+    h1 {
+      color: #15803d;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    textarea, input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #22c55e;
+      border-radius: 10px;
+      resize: vertical;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+
+    textarea {
+      height: 200px;
+    }
+
+    button {
+      margin-top: 15px;
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      display: block;
+      width: 100%;
+    }
+
+    button:hover {
+      background: #16a34a;
+    }
+
+    select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 15px;
+      border: 2px solid #22c55e;
+      border-radius: 10px;
+      font-size: 16px;
+    }
+
+    .output {
+      margin-top: 20px;
+      padding: 20px;
+      border-radius: 10px;
+      background: #ecfdf5;
+      border: 1px solid #22c55e;
+      white-space: pre-wrap;
+      max-height: 500px;
+      overflow-y: auto;
+      font-size: 15px;
+    }
+
+    .section-btn {
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 8px;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+
+    .section-content {
+      display: none;
+      padding: 10px;
+      border-left: 3px solid #16a34a;
+      margin-bottom: 10px;
+      background: #ecfdf5;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>BRD → UI Code Generator</h1>
+    <input id="projectName" placeholder="Enter project name (e.g., Gym Website)" />
+    <textarea id="brdInput" placeholder="Paste your BRD here..."></textarea>
+    <button onclick="generate()">Generate</button>
+
+    <h3>History</h3>
+    <select id="historyDropdown" onchange="loadFromHistory()">
+      <option value="">-- Select Previous Run --</option>
+    </select>
+
+    <div id="output" class="output"></div>
+  </div>
+
+  <script>
+    // -----------------
+    // IndexedDB Setup
+    // -----------------
+    let db;
+    const request = indexedDB.open("PipelineDB", 1);
+
+    request.onupgradeneeded = (event) => {
+      db = event.target.result;
+      if (!db.objectStoreNames.contains("runs")) {
+        db.createObjectStore("runs", { keyPath: "id" });
+      }
+    };
+
+    request.onsuccess = (event) => {
+      db = event.target.result;
+      loadHistoryDropdown();
+    };
+
+    request.onerror = (event) => {
+      console.error("IndexedDB error:", event.target.errorCode);
+    };
+
+    function saveRun(run) {
+      const tx = db.transaction("runs", "readwrite");
+      const store = tx.objectStore("runs");
+      store.put(run);
+      tx.oncomplete = () => loadHistoryDropdown();
+    }
+
+    function getAllRuns(callback) {
+      const tx = db.transaction("runs", "readonly");
+      const store = tx.objectStore("runs");
+      const request = store.getAll();
+      request.onsuccess = () => callback(request.result);
+    }
+
+    function loadHistoryDropdown() {
+      getAllRuns((runs) => {
+        const dropdown = document.getElementById("historyDropdown");
+        dropdown.innerHTML = `<option value="">-- Select Previous Run --</option>`;
+        runs.forEach(run => {
+          dropdown.innerHTML += `<option value="${run.id}">${run.projectName} (${new Date(run.timestamp).toLocaleString()})</option>`;
+        });
+      });
+    }
+
+    function loadFromHistory() {
+      const id = document.getElementById("historyDropdown").value;
+      if (!id) return;
+      const tx = db.transaction("runs", "readonly");
+      const store = tx.objectStore("runs");
+      const request = store.get(id);
+      request.onsuccess = () => {
+        const run = request.result;
+        if (run) displayResults(run.results);
+      };
+    }
+
+    // -----------------
+    // Pipeline Call
+    // -----------------
+    async function generate() {
+      const projectName = document.getElementById("projectName").value.trim();
+      const brdText = document.getElementById("brdInput").value;
+      const outputDiv = document.getElementById("output");
+
+      if (!projectName) {
+        alert("Please enter a project name!");
+        return;
+      }
+
+      const runId = `${projectName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
+
+      // Loading animation
+      const messages = ["Crunching your BRD", "Generating awesome UI ideas", "Almost there, hang tight", "Our AI is brainstorming"];
+      let msgIndex = 0, dots = 0;
+      outputDiv.innerText = "⏳ " + messages[msgIndex];
+      const loadingInterval = setInterval(() => {
+        outputDiv.innerText = "⏳ " + messages[msgIndex] + ".".repeat(dots);
+        dots = (dots + 1) % 4;
+        if (dots === 0) msgIndex = (msgIndex + 1) % messages.length;
+      }, 500);
+
+      try {
+        const response = await fetch("http://127.0.0.1:8000/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brd_text: brdText }),
+        });
+
+        if (!response.ok) throw new Error("Server error: " + response.status);
+
+        const data = await response.json();
+        clearInterval(loadingInterval);
+
+        // Save to IndexedDB
+        const run = {
+          id: runId,
+          projectName,
+          timestamp: new Date().toISOString(),
+          brd: brdText,
+          results: data,
+        };
+        saveRun(run);
+
+        // Show results
+        displayResults(data);
+
+      } catch (err) {
+        clearInterval(loadingInterval);
+        outputDiv.innerText = "❌ Error: " + err.message;
+      }
+    }
+
+    function displayResults(data) {
+      const outputDiv = document.getElementById("output");
+      outputDiv.innerHTML = "";
+      for (const [key, value] of Object.entries(data)) {
+        const section = document.createElement("div");
+        section.className = "section";
+
+        const btn = document.createElement("button");
+        btn.className = "section-btn";
+        btn.innerText = key;
+
+        const content = document.createElement("div");
+        content.className = "section-content";
+
+        let displayText = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+
+        let charIndex = 0;
+        const typingInterval = setInterval(() => {
+          content.innerText += displayText.charAt(charIndex);
+          charIndex++;
+          if (charIndex >= displayText.length) clearInterval(typingInterval);
+        }, 10);
+
+        btn.addEventListener("click", () => {
+          content.style.display = content.style.display === "block" ? "none" : "block";
+        });
+
+        section.appendChild(btn);
+        section.appendChild(content);
+        outputDiv.appendChild(section);
+      }
+    }
+  </script>
+</body>
+</html> -->
+
+
+<!-- Hybrid Approach No semmatic -->
+
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BRD Generator</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0fdf4;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+    .container {
+      background: #ffffff;
+      margin-top: 40px;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      width: 80%;
+      max-width: 900px;
+    }
+    h1 {
+      color: #15803d;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    textarea, input, select {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #22c55e;
+      border-radius: 10px;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    textarea { height: 200px; resize: vertical; }
+    button {
+      margin-top: 15px;
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      display: block;
+      width: 100%;
+    }
+    button:hover { background: #16a34a; }
+    .output {
+      margin-top: 20px;
+      padding: 20px;
+      border-radius: 10px;
+      background: #ecfdf5;
+      border: 1px solid #22c55e;
+      white-space: pre-wrap;
+      max-height: 500px;
+      overflow-y: auto;
+      font-size: 15px;
+    }
+    .section-btn {
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 8px;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    .section-content {
+      display: none;
+      padding: 10px;
+      border-left: 3px solid #16a34a;
+      margin-bottom: 10px;
+      background: #ecfdf5;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>BRD → UI Code Generator</h1>
+    
+    <input id="projectName" placeholder="Enter project name (for NEW project)" />
+    <textarea id="brdInput" placeholder="Paste your BRD or modification here..."></textarea>
+    <button onclick="generate()">Generate</button>
+
+    <h3>History</h3>
+    <select id="historyDropdown" onchange="onHistorySelect()">
+      <option value="">-- Select Previous Project --</option>
+    </select>
+
+    <div id="output" class="output"></div>
+  </div>
+
+  <script>
+    // ---------------- IndexedDB ----------------
+    let db;
+    const request = indexedDB.open("PipelineDB", 1);
+
+    request.onupgradeneeded = (event) => {
+      db = event.target.result;
+      if (!db.objectStoreNames.contains("runs")) {
+        db.createObjectStore("runs", { keyPath: "id" });
+      }
+    };
+    request.onsuccess = (event) => {
+      db = event.target.result;
+      loadHistoryDropdown();
+    };
+
+    function saveRun(run) {
+      const tx = db.transaction("runs", "readwrite");
+      tx.objectStore("runs").put(run);
+      tx.oncomplete = () => loadHistoryDropdown();
+    }
+
+    function getAllRuns(callback) {
+      const tx = db.transaction("runs", "readonly");
+      const request = tx.objectStore("runs").getAll();
+      request.onsuccess = () => callback(request.result);
+    }
+
+    function getRun(id, callback) {
+      const tx = db.transaction("runs", "readonly");
+      const request = tx.objectStore("runs").get(id);
+      request.onsuccess = () => callback(request.result);
+    }
+
+    function loadHistoryDropdown() {
+      getAllRuns((runs) => {
+        const dropdown = document.getElementById("historyDropdown");
+        dropdown.innerHTML = `<option value="">-- Select Previous Project --</option>`;
+        runs.forEach(run => {
+          dropdown.innerHTML += `<option value="${run.id}">${run.projectName} (${new Date(run.timestamp).toLocaleString()})</option>`;
+        });
+      });
+    }
+
+    function onHistorySelect() {
+      const dropdown = document.getElementById("historyDropdown");
+      const projectInput = document.getElementById("projectName");
+      if (dropdown.value) {
+        projectInput.disabled = true; // edit mode
+      } else {
+        projectInput.disabled = false; // new mode
+      }
+    }
+
+    // ---------------- Pipeline ----------------
+    async function generate() {
+      const projectNameInput = document.getElementById("projectName");
+      const dropdown = document.getElementById("historyDropdown");
+      const brdText = document.getElementById("brdInput").value.trim();
+      const outputDiv = document.getElementById("output");
+
+      if (!brdText) {
+        alert("Please enter a BRD or modification.");
+        return;
+      }
+
+      let runId, projectName, baseRun = null;
+
+      // Case 1: Edit existing project from dropdown
+      if (dropdown.value) {
+        await new Promise(resolve => getRun(dropdown.value, (run) => {
+          baseRun = run;
+          projectName = run.projectName;
+          runId = run.id;
+          resolve();
+        }));
+      } 
+      // Case 2: New project
+      else if (projectNameInput.value.trim()) {
+        projectName = projectNameInput.value.trim();
+        runId = `${projectName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
+      } 
+      // Case 3: Hybrid auto-match
+      else {
+        const allRuns = await new Promise(resolve => getAllRuns(resolve));
+        const matches = allRuns.filter(run => 
+          run.projectName.toLowerCase().includes(brdText.toLowerCase())
+        );
+
+        if (matches.length === 1) {
+          baseRun = matches[0];
+          projectName = baseRun.projectName;
+          runId = baseRun.id;
+        } else if (matches.length > 1) {
+          const choice = confirm(`Multiple matches found: ${matches.map(m => m.projectName).join(", ")}. Load first match?`);
+          if (choice) {
+            baseRun = matches[0];
+            projectName = baseRun.projectName;
+            runId = baseRun.id;
+          } else {
+            projectName = "Untitled Project";
+            runId = `untitled-${Date.now()}`;
+          }
+        } else {
+          projectName = "Untitled Project";
+          runId = `untitled-${Date.now()}`;
+        }
+      }
+
+      // Loading animation
+      const messages = ["Crunching your BRD", "Generating awesome UI ideas", "Almost there, hang tight"];
+      let msgIndex = 0, dots = 0;
+      outputDiv.innerText = "⏳ " + messages[msgIndex];
+      const loadingInterval = setInterval(() => {
+        outputDiv.innerText = "⏳ " + messages[msgIndex] + ".".repeat(dots);
+        dots = (dots + 1) % 4;
+        if (dots === 0) msgIndex = (msgIndex + 1) % messages.length;
+      }, 500);
+
+      try {
+        const response = await fetch("http://127.0.0.1:8000/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brd_text: brdText })
+        });
+        if (!response.ok) throw new Error("Server error: " + response.status);
+        const data = await response.json();
+        clearInterval(loadingInterval);
+
+        const run = {
+          id: runId,
+          projectName,
+          timestamp: new Date().toISOString(),
+          brd: brdText,
+          results: data,
+        };
+        saveRun(run);
+        displayResults(data);
+
+      } catch (err) {
+        clearInterval(loadingInterval);
+        outputDiv.innerText = "❌ Error: " + err.message;
+      }
+    }
+
+    function displayResults(data) {
+      const outputDiv = document.getElementById("output");
+      outputDiv.innerHTML = "";
+      for (const [key, value] of Object.entries(data)) {
+        const section = document.createElement("div");
+        section.className = "section";
+
+        const btn = document.createElement("button");
+        btn.className = "section-btn";
+        btn.innerText = key;
+
+        const content = document.createElement("div");
+        content.className = "section-content";
+
+        let displayText = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+
+        let charIndex = 0;
+        const typingInterval = setInterval(() => {
+          content.innerText += displayText.charAt(charIndex);
+          charIndex++;
+          if (charIndex >= displayText.length) clearInterval(typingInterval);
+        }, 10);
+
+        btn.addEventListener("click", () => {
+          content.style.display = content.style.display === "block" ? "none" : "block";
+        });
+
+        section.appendChild(btn);
+        section.appendChild(content);
+        outputDiv.appendChild(section);
+      }
+    }
+  </script>
+</body>
+</html> -->
+
+
+
+<!-- <html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BRD Generator</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0fdf4;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+    .container {
+      background: #ffffff;
+      margin-top: 40px;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      width: 80%;
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    h1 {
+      color: #15803d;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    textarea, input, select {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #22c55e;
+      border-radius: 10px;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    textarea { height: 200px; resize: vertical; }
+    button {
+      margin-top: 10px;
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      display: block;
+      width: 100%;
+    }
+    button:hover { background: #16a34a; }
+    .output {
+      margin-top: 10px;
+      padding: 20px;
+      border-radius: 10px;
+      background: #ecfdf5;
+      border: 1px solid #22c55e;
+      white-space: pre-wrap;
+      max-height: 500px;
+      overflow-y: auto;
+      font-size: 15px;
+    }
+    .section-btn {
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 8px;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    .section-content {
+      display: none;
+      padding: 10px;
+      border-left: 3px solid #16a34a;
+      margin-bottom: 10px;
+      background: #ecfdf5;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    /* Chatbot styles */
+    #chatContainer {
+      margin-bottom: 10px;
+      border: 1px solid #22c55e;
+      border-radius: 10px;
+      padding: 10px;
+      max-height: 250px;
+      overflow-y: auto;
+      background: #f9fff9;
+      display: flex;
+      flex-direction: column;
+    }
+    #chatInput {
+      margin-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>BRD → UI Code Generator</h1>
+
+    
+    <div id="chatContainer"></div>
+    <input id="chatInput" placeholder="Type your answer here..." />
+    <button onclick="sendAnswer()">Send</button>
+    <button onclick="startQA()">Start Q/A Mode</button>
+
+    <hr />
+
+    
+    <input id="projectName" placeholder="Enter project name (leave blank for auto-detect)" />
+    <textarea id="brdInput" placeholder="Paste your BRD or modification here..."></textarea>
+    <button onclick="generate()">Generate</button>
+
+    <h3>History</h3>
+    <select id="historyDropdown" onchange="onHistorySelect()">
+      <option value="">-- Select Previous Project --</option>
+    </select>
+
+    <div id="output" class="output"></div>
+  </div>
+
+  <script>
+    // ---------------- Q/A Chatbot ----------------
+    const qaQuestions = [
+      "What is your business or product?",
+      "Who are the target users?",
+      "What screens/pages do you need?",
+      "What features should it include?",
+      "Any specific UI/UX preferences?",
+      "What type of content will it have?",
+      "Any constraints or other notes?"
+    ];
+    const qaKeys = ["Business", "Users", "Pages", "Features", "UI/UX", "Content", "Other"];
+    let qaAnswers = {};
+    let qaIndex = 0;
+
+    function addMessage(text, sender="bot") {
+      const container = document.getElementById("chatContainer");
+      const msg = document.createElement("div");
+      msg.style.margin = "6px 0";
+      msg.style.padding = "8px 12px";
+      msg.style.borderRadius = "10px";
+      msg.style.maxWidth = "75%";
+      msg.style.whiteSpace = "pre-wrap";
+      msg.style.background = sender === "bot" ? "#dcfce7" : "#bbf7d0";
+      msg.style.alignSelf = sender === "bot" ? "flex-start" : "flex-end";
+      msg.innerText = text;
+      container.appendChild(msg);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function startQA() {
+      qaAnswers = {};
+      qaIndex = 0;
+      document.getElementById("chatContainer").innerHTML = "";
+      addMessage("Let's gather your requirements! 🚀");
+      addMessage(qaQuestions[qaIndex]);
+    }
+
+    function sendAnswer() {
+      const input = document.getElementById("chatInput");
+      const answer = input.value.trim();
+      if (!answer) return;
+      addMessage(answer, "user");
+      qaAnswers[qaKeys[qaIndex]] = answer;
+      input.value = "";
+      qaIndex++;
+      if (qaIndex < qaQuestions.length) {
+        addMessage(qaQuestions[qaIndex]);
+      } else {
+        addMessage("✅ Thanks! Generating your BRD...");
+        generateFromQA(qaAnswers);
+      }
+    }
+
+    async function generateFromQA(answers) {
+      const outputDiv = document.getElementById("output");
+      outputDiv.innerText = "⏳ Generating BRD & PRD from your answers...";
+      try {
+        const response = await fetch("http://127.0.0.1:8000/generate_from_qa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answers })
+        });
+        if (!response.ok) throw new Error("Server error: " + response.status);
+        const data = await response.json();
+        displayResults(data);
+      } catch (err) {
+        outputDiv.innerText = "❌ Error: " + err.message;
+      }
+    }
+
+    // ---------------- IndexedDB ----------------
+    let db;
+    const request = indexedDB.open("PipelineDB", 1);
+    request.onupgradeneeded = (event) => {
+      db = event.target.result;
+      if (!db.objectStoreNames.contains("runs")) {
+        const store = db.createObjectStore("runs", { keyPath: "id" });
+        store.createIndex("projectName", "projectName", { unique: false });
+      }
+    };
+    request.onsuccess = (event) => {
+      db = event.target.result;
+      loadHistoryDropdown();
+    };
+
+    function saveRun(run) {
+      const tx = db.transaction("runs", "readwrite");
+      tx.objectStore("runs").put(run);
+      tx.oncomplete = () => loadHistoryDropdown();
+    }
+
+    function getAllRuns(callback) {
+      const tx = db.transaction("runs", "readonly");
+      const request = tx.objectStore("runs").getAll();
+      request.onsuccess = () => callback(request.result);
+    }
+
+    function getRun(id, callback) {
+      const tx = db.transaction("runs", "readonly");
+      const request = tx.objectStore("runs").get(id);
+      request.onsuccess = () => callback(request.result);
+    }
+
+    function loadHistoryDropdown() {
+      getAllRuns((runs) => {
+        const dropdown = document.getElementById("historyDropdown");
+        dropdown.innerHTML = `<option value="">-- Select Previous Project --</option>`;
+        runs.forEach(run => {
+          dropdown.innerHTML += `<option value="${run.id}">${run.projectName} (${new Date(run.timestamp).toLocaleString()})</option>`;
+        });
+      });
+    }
+
+    function onHistorySelect() {
+      const dropdown = document.getElementById("historyDropdown");
+      const projectInput = document.getElementById("projectName");
+      projectInput.disabled = !!dropdown.value;
+    }
+
+    // ---------------- Embeddings ----------------
+    async function embedText(text) {
+      try {
+        const resp = await fetch("http://localhost:11434/api/embeddings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "nomic-embed-text", input: text })
+        });
+        const data = await resp.json();
+        return data.embedding;
+      } catch (err) {
+        console.error("Embedding error:", err);
+        return null;
+      }
+    }
+
+    function cosineSim(a, b) {
+      const dot = a.reduce((sum, v, i) => sum + v * b[i], 0);
+      const normA = Math.sqrt(a.reduce((sum, v) => sum + v * v, 0));
+      const normB = Math.sqrt(b.reduce((sum, v) => sum + v * v, 0));
+      return dot / (normA * normB);
+    }
+
+    async function semanticSearch(query, runs) {
+      const queryEmbed = await embedText(query);
+      if (!queryEmbed) return null;
+      let best = null, bestScore = -1;
+      for (const run of runs) {
+        if (!run.embedding) continue;
+        const score = cosineSim(queryEmbed, run.embedding);
+        if (score > bestScore) {
+          best = run;
+          bestScore = score;
+        }
+      }
+      return best;
+    }
+
+    // ---------------- Pipeline (BRD textarea) ----------------
+    async function generate() {
+      const projectNameInput = document.getElementById("projectName");
+      const dropdown = document.getElementById("historyDropdown");
+      const brdText = document.getElementById("brdInput").value.trim();
+      const outputDiv = document.getElementById("output");
+
+      if (!brdText) {
+        alert("Please enter a BRD or modification.");
+        return;
+      }
+
+      let runId, projectName, baseRun = null, mergedBRD = brdText;
+
+      if (dropdown.value) {
+        await new Promise(resolve => getRun(dropdown.value, (run) => {
+          baseRun = run;
+          projectName = run.projectName;
+          runId = run.id;
+          resolve();
+        }));
+      } else if (projectNameInput.value.trim()) {
+        const allRuns = await new Promise(resolve => getAllRuns(resolve));
+        const matches = allRuns.filter(r => r.projectName.toLowerCase() === projectNameInput.value.trim().toLowerCase());
+        if (matches.length) {
+          baseRun = matches[matches.length - 1];
+          projectName = baseRun.projectName;
+          runId = baseRun.id;
+        } else {
+          projectName = projectNameInput.value.trim();
+          runId = `${projectName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
+        }
+      } else {
+        const allRuns = await new Promise(resolve => getAllRuns(resolve));
+        baseRun = await semanticSearch(brdText, allRuns);
+        if (baseRun) {
+          projectName = baseRun.projectName;
+          runId = baseRun.id;
+        } else {
+          projectName = "Untitled Project";
+          runId = `untitled-${Date.now()}`;
+        }
+      }
+
+      if (baseRun) {
+        mergedBRD = baseRun.brd + "\n\n--- UPDATE ---\n\n" + brdText;
+      }
+
+      outputDiv.innerText = "⏳ Generating...";
+      try {
+        const response = await fetch("http://127.0.0.1:8000/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brd_text: mergedBRD })
+        });
+        if (!response.ok) throw new Error("Server error: " + response.status);
+        const data = await response.json();
+        const embedding = await embedText(mergedBRD);
+        const run = {
+          id: runId,
+          projectName,
+          timestamp: new Date().toISOString(),
+          brd: mergedBRD,
+          results: data,
+          embedding
+        };
+        saveRun(run);
+        displayResults(data);
+      } catch (err) {
+        outputDiv.innerText = "❌ Error: " + err.message;
+      }
+    }
+
+    function displayResults(data) {
+      const outputDiv = document.getElementById("output");
+      outputDiv.innerHTML = "";
+      for (const [key, value] of Object.entries(data)) {
+        const section = document.createElement("div");
+        section.className = "section";
+        const btn = document.createElement("button");
+        btn.className = "section-btn";
+        btn.innerText = key;
+        const content = document.createElement("div");
+        content.className = "section-content";
+        let displayText = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+        let charIndex = 0;
+        const typingInterval = setInterval(() => {
+          content.innerText += displayText.charAt(charIndex);
+          charIndex++;
+          if (charIndex >= displayText.length) clearInterval(typingInterval);
+        }, 10);
+        btn.addEventListener("click", () => {
+          content.style.display = content.style.display === "block" ? "none" : "block";
+        });
+        section.appendChild(btn);
+        section.appendChild(content);
+        outputDiv.appendChild(section);
+      }
+    }
+  </script>
+</body>
+</html>  -->
+
+
+
+
+<!-- Confirmed one - without preview, with indexed db and dropdown stored, select dropdown existing project means not showing -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BRD Generator</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0fdf4;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+    .container {
+      background: #ffffff;
+      margin-top: 40px;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      width: 80%;
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    h1 {
+      color: #15803d;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    textarea, input, select {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #22c55e;
+      border-radius: 10px;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    textarea { height: 200px; resize: vertical; }
+    button {
+      margin-top: 10px;
+      background: #85c49c;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      display: block;
+      width: 100%;
+    }
+    button:hover { background: #16a34a; }
+    .output {
+      margin-top: 10px;
+      padding: 20px;
+      border-radius: 10px;
+      background: #ecfdf5;
+      border: 1px solid #22c55e;
+      white-space: pre-wrap;
+      max-height: 500px;
+      overflow-y: auto;
+      font-size: 15px;
+    }
+    .section-btn {
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 8px;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    .section-content {
+      display: none;
+      padding: 10px;
+      border-left: 3px solid #16a34a;
+      margin-bottom: 10px;
+      background: #ecfdf5;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    /* Chatbot styles */
+    #chatContainer {
+      margin-bottom: 10px;
+      border: 1px solid #22c55e;
+      border-radius: 10px;
+      padding: 10px;
+      max-height: 250px;
+      overflow-y: auto;
+      background: #f9fff9;
+      display: flex;
+      flex-direction: column;
+    }
+    #chatInput {
+      margin-bottom: 5px;
+    }
+    #manualSection {
+      transition: all 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>BRD → UI Code Generator</h1>
+
+    <!-- First: Start QA Mode -->
+    <button onclick="startQA()">Start Q/A Mode</button>
+
+    <!-- Chat section -->
+    <div id="chatSection" style="display:none;">
+      <div id="chatContainer"></div>
+      <input id="chatInput" placeholder="Type your answer here..." />
+      <button onclick="sendAnswer()">Send</button>
+    </div>
+
+    <hr />
+
+    <!-- Manual BRD Section (hidden when QA mode active) -->
+    <div id="manualSection">
+      <input id="projectName" placeholder="Enter project name (leave blank for auto-detect)" />
+      <textarea id="brdInput" placeholder="Paste your BRD or modification here..."></textarea>
+      <button onclick="generate()">Generate</button>
+    </div>
+
+    <h3>History</h3>
+    <select id="historyDropdown" onchange="onHistorySelect()">
+      <option value="">-- Select Previous Project --</option>
+    </select>
+
+    <div id="output" class="output"></div>
+  </div>
+
+  <script>
+    // ---------------- Q/A Chatbot ----------------
+    const qaQuestions = [
+      "What is your business or product?",
+      "Who are the target users?",
+      "What screens/pages do you need?",
+      "What features should it include?",
+      "Any specific UI/UX preferences?",
+      "What type of content will it have?",
+      "Any constraints or other notes?"
+    ];
+    const qaKeys = ["Business", "Users", "Pages", "Features", "UI/UX", "Content", "Other"];
+    let qaAnswers = {};
+    let qaIndex = 0;
+
+    function addMessage(text, sender="bot") {
+      const container = document.getElementById("chatContainer");
+      const msg = document.createElement("div");
+      msg.style.margin = "6px 0";
+      msg.style.padding = "8px 12px";
+      msg.style.borderRadius = "10px";
+      msg.style.maxWidth = "75%";
+      msg.style.whiteSpace = "pre-wrap";
+      msg.style.background = sender === "bot" ? "#dcfce7" : "#bbf7d0";
+      msg.style.alignSelf = sender === "bot" ? "flex-start" : "flex-end";
+      msg.innerText = text;
+      container.appendChild(msg);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function startQA() {
+      qaAnswers = {};
+      qaIndex = 0;
+      document.getElementById("chatContainer").innerHTML = "";
+      document.getElementById("chatSection").style.display = "block";
+      document.getElementById("manualSection").style.display = "none"; // hide manual form
+      addMessage("Let's gather your requirements! 🚀");
+      addMessage(qaQuestions[qaIndex]);
+    }
+
+    function sendAnswer() {
+      const input = document.getElementById("chatInput");
+      const answer = input.value.trim();
+      if (!answer) return;
+      addMessage(answer, "user");
+      qaAnswers[qaKeys[qaIndex]] = answer;
+      input.value = "";
+      qaIndex++;
+      if (qaIndex < qaQuestions.length) {
+        addMessage(qaQuestions[qaIndex]);
+      } else {
+        addMessage("✅ Thanks! Generating your BRD...");
+        generateFromQA(qaAnswers); // directly call pipeline
+      }
+    }
+
+    async function generateFromQA(answers) {
+      const outputDiv = document.getElementById("output");
+      outputDiv.innerText = "⏳ Generating BRD & PRD from your answers...";
+      try {
+        const response = await fetch("http://127.0.0.1:8000/generate_from_qa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answers })
+        });
+        if (!response.ok) throw new Error("Server error: " + response.status);
+        const data = await response.json();
+        const runId = `qa-${Date.now()}`;
+        const run = {
+          id: runId,
+          projectName: answers.Business || "Untitled Project",
+          timestamp: new Date().toISOString(),
+          brd: JSON.stringify(answers, null, 2), // save the raw answers as BRD
+          results: data
+        };
+
+        saveRun(run);   // <--- add this
+        displayResults(data);
+      } catch (err) {
+        outputDiv.innerText = "❌ Error: " + err.message;
+      }
+    }
+
+    // (Rest of your IndexedDB + pipeline + displayResults stays SAME as your previous code)
+    // ---------------- IndexedDB ----------------
+    let db;
+    const request = indexedDB.open("PipelineDB", 1);
+    request.onupgradeneeded = (event) => {
+      db = event.target.result;
+      if (!db.objectStoreNames.contains("runs")) {
+        const store = db.createObjectStore("runs", { keyPath: "id" });
+        store.createIndex("projectName", "projectName", { unique: false });
+      }
+    };
+    request.onsuccess = (event) => {
+      db = event.target.result;
+      loadHistoryDropdown();
+    };
+
+    function saveRun(run) {
+      const tx = db.transaction("runs", "readwrite");
+      tx.objectStore("runs").put(run);
+      tx.oncomplete = () => loadHistoryDropdown();
+    }
+
+    function getAllRuns(callback) {
+      const tx = db.transaction("runs", "readonly");
+      const request = tx.objectStore("runs").getAll();
+      request.onsuccess = () => callback(request.result);
+    }
+
+    function getRun(id, callback) {
+      const tx = db.transaction("runs", "readonly");
+      const request = tx.objectStore("runs").get(id);
+      request.onsuccess = () => callback(request.result);
+    }
+
+    function loadHistoryDropdown() {
+      getAllRuns((runs) => {
+        const dropdown = document.getElementById("historyDropdown");
+        dropdown.innerHTML = `<option value="">-- Select Previous Project --</option>`;
+        runs.forEach(run => {
+          dropdown.innerHTML += `<option value="${run.id}">${run.projectName} (${new Date(run.timestamp).toLocaleString()})</option>`;
+        });
+      });
+    }
+
+    function onHistorySelect() {
+      const dropdown = document.getElementById("historyDropdown");
+      const projectInput = document.getElementById("projectName");
+      projectInput.disabled = !!dropdown.value;
+    }
+
+    // ---------------- Pipeline (Manual BRD form) ----------------
+    async function generate() {
+      const projectNameInput = document.getElementById("projectName");
+      const dropdown = document.getElementById("historyDropdown");
+      const brdText = document.getElementById("brdInput").value.trim();
+      const outputDiv = document.getElementById("output");
+
+      if (!brdText) {
+        alert("Please enter a BRD or modification.");
+        return;
+      }
+
+      let runId, projectName, baseRun = null, mergedBRD = brdText;
+
+      if (dropdown.value) {
+        await new Promise(resolve => getRun(dropdown.value, (run) => {
+          baseRun = run;
+          projectName = run.projectName;
+          runId = run.id;
+          resolve();
+        }));
+      } else if (projectNameInput.value.trim()) {
+        const allRuns = await new Promise(resolve => getAllRuns(resolve));
+        const matches = allRuns.filter(r => r.projectName.toLowerCase() === projectNameInput.value.trim().toLowerCase());
+        if (matches.length) {
+          baseRun = matches[matches.length - 1];
+          projectName = baseRun.projectName;
+          runId = baseRun.id;
+        } else {
+          projectName = projectNameInput.value.trim();
+          runId = `${projectName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
+        }
+      } else {
+        const allRuns = await new Promise(resolve => getAllRuns(resolve));
+        baseRun = await semanticSearch(brdText, allRuns);
+        if (baseRun) {
+          projectName = baseRun.projectName;
+          runId = baseRun.id;
+        } else {
+          projectName = "Untitled Project";
+          runId = `untitled-${Date.now()}`;
+        }
+      }
+
+      if (baseRun) {
+        mergedBRD = baseRun.brd + "\n\n--- UPDATE ---\n\n" + brdText;
+      }
+
+      outputDiv.innerText = "⏳ Generating...";
+      try {
+        const response = await fetch("http://127.0.0.1:8000/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brd_text: mergedBRD })
+        });
+        if (!response.ok) throw new Error("Server error: " + response.status);
+        const data = await response.json();
+        const run = {
+          id: runId,
+          projectName,
+          timestamp: new Date().toISOString(),
+          brd: mergedBRD,
+          results: data
+        };
+
+        saveRun(run);   // <--- add this
+        displayResults(data);
+      } catch (err) {
+        outputDiv.innerText = "❌ Error: " + err.message;
+      }
+    }
+
+    function displayResults(data) {
+      const outputDiv = document.getElementById("output");
+      outputDiv.innerHTML = "";
+      for (const [key, value] of Object.entries(data)) {
+        const section = document.createElement("div");
+        section.className = "section";
+        const btn = document.createElement("button");
+        btn.className = "section-btn";
+        btn.innerText = key;
+        const content = document.createElement("div");
+        content.className = "section-content";
+        let displayText = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+        let charIndex = 0;
+        const typingInterval = setInterval(() => {
+          content.innerText += displayText.charAt(charIndex);
+          charIndex++;
+          if (charIndex >= displayText.length) clearInterval(typingInterval);
+        }, 10);
+        btn.addEventListener("click", () => {
+          content.style.display = content.style.display === "block" ? "none" : "block";
+        });
+        section.appendChild(btn);
+        section.appendChild(content);
+        outputDiv.appendChild(section);
+      }
+    }
+
+    // ---------------- Embeddings ----------------
+    async function embedText(text) {
+      try {
+        const resp = await fetch("http://localhost:11434/api/embeddings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "nomic-embed-text", input: text })
+        });
+        const data = await resp.json();
+        return data.embedding;
+      } catch (err) {
+        console.error("Embedding error:", err);
+        return null;
+      }
+    }
+
+    function cosineSim(a, b) {
+      const dot = a.reduce((sum, v, i) => sum + v * b[i], 0);
+      const normA = Math.sqrt(a.reduce((sum, v) => sum + v * v, 0));
+      const normB = Math.sqrt(b.reduce((sum, v) => sum + v * v, 0));
+      return dot / (normA * normB);
+    }
+
+    async function semanticSearch(query, runs) {
+      const queryEmbed = await embedText(query);
+      if (!queryEmbed) return null;
+      let best = null, bestScore = -1;
+      for (const run of runs) {
+        if (!run.embedding) continue;
+        const score = cosineSim(queryEmbed, run.embedding);
+        if (score > bestScore) {
+          best = run;
+          bestScore = score;
+        }
+      }
+      return best;
+    }
+  </script>
+</body>
 </html>
+
+
