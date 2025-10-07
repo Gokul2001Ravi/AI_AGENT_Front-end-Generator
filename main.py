@@ -42,7 +42,7 @@
 # def home():
 #     return {"message": "AI Agent Pipeline API is running 🚀"}
 
-
+#python -m uvicorn main:app  
 #python -m uvicorn main:app --reload
 #python -m uvicorn main:app --reload --reload-exclude 'generated_ui/*'
 #npm install vite --save-dev

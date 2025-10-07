@@ -402,7 +402,7 @@ def summarizer_llm(text: str, context_type: str) -> str:
     try:
         with requests.post(
             "http://localhost:11434/api/generate",
-            json={"model": "mistral:instruct", "prompt": prompt, "stream": True},
+            json={"model": "mistral:latest", "prompt": prompt, "stream": True},
             stream=True,
             timeout=180
         ) as resp:
@@ -422,7 +422,7 @@ def summarizer_llm(text: str, context_type: str) -> str:
 # Memory Class
 # =========================
 class Memory:
-    def __init__(self, ltm_file="ltm_Autism_olama.json"):
+    def __init__(self, ltm_file="ltm_storage/ltm_ecom2.json"):
         # Short-Term Memory (per session, resets if you restart script)
         self.stm = {}
 

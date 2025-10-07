@@ -1,4 +1,4 @@
-/* Add your custom Tailwind CSS styles here */
+@import "tailwindcss";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

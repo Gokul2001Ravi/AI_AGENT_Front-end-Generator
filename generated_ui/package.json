@@ -1,26 +1,35 @@
 {
-  "name": "neurodiverse-learning-gaming-platform",
-  "version": "1.0.0",
-  "description": "Neurodiverse Learning & Gaming Platform",
-  "main": "src/main.jsx",
+  "name": "ai-shopping-assistant",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint . --ext .js,.jsx --fix",
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "tailwindcss": "^3.1.8",
-    "@reduxjs/toolkit": "^1.8.1",
-    "react-redux": "^7.2.5",
-    "axios": "^0.21.4",
-    "react-router-dom": "^6.3.0"
+    "@reduxjs/toolkit": "latest",
+    "papaparse": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-redux": "latest",
+    "react-router-dom": "latest",
+    "uuid": "latest"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^2.1.0",
-    "eslint": "^8.10.0",
-    "prettier": "^2.7.1"
+    "@tailwindcss/vite": "^4.1.14",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "autoprefixer": "latest",
+    "eslint": "latest",
+    "eslint-plugin-react": "latest",
+    "eslint-plugin-react-hooks": "latest",
+    "eslint-plugin-react-refresh": "latest",
+    "postcss": "latest",
+    "tailwindcss": "^4.1.14",
+    "vite": "latest"
   }
 }
